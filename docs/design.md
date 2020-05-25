@@ -9,6 +9,7 @@
 - Body: annotation 内容，使用 json 格式
 
 ```go
+package atest
 type MyAnnotation struct{
     A string
 }

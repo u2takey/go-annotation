@@ -16,8 +16,8 @@ type Description struct {
 
 func (p *Description) GetTemplate() string {
 	return `
-func (s *$.type|raw$) Description() string {
-	return ""
+func (s *$.type|raw$) GetDescription() string {
+	return "$.type|raw$"
 }
 `
 }

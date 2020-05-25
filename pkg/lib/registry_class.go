@@ -64,7 +64,10 @@ func (p *threadSafeRegistry) GetAnnotations(t interface{}) (ret []Annotation) {
 func (p *threadSafeRegistry) GetAllAnnotations() (ret []Annotation) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	for _, annotationMapByType := range p.annotationRegistry {
+	for k, annotationMapByType := range p.annotationRegistry {
+		if k == reflect.TypeOf(new(Plugin)).Elem() {
+			continue
+		}
 		for _, v2 := range annotationMapByType {
 			ret = append(ret, v2)
 		}
