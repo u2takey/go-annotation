@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 
 	"github.com/u2takey/go-annotation/pkg/lib"
-	plugins "github.com/u2takey/go-annotation/pkg/plugins"
+	plugin "github.com/u2takey/go-annotation/pkg/plugin"
 	"k8s.io/klog"
 )
 
 func init() {
-	b := new(plugins.Description)
+	b := new(plugin.Description)
 	err := json.Unmarshal([]byte("{\"body\":\"a\"}"), b)
 	if err != nil {
 		klog.Fatal("unmarshal json failed", err)
@@ -25,7 +25,7 @@ func (s *A) GetDescription() string {
 }
 
 func init() {
-	b := new(plugins.Description)
+	b := new(plugin.Description)
 	err := json.Unmarshal([]byte("{\"body\":\"b\"}"), b)
 	if err != nil {
 		klog.Fatal("unmarshal json failed", err)
@@ -36,4 +36,58 @@ func init() {
 
 func (s *B) GetDescription() string {
 	return "B"
+}
+
+func init() {
+	b := new(plugin.Component)
+	err := json.Unmarshal([]byte("{}"), b)
+	if err != nil {
+		klog.Fatal("unmarshal json failed", err)
+		return
+	}
+	lib.RegisterAnnotation(new(ComponentA), b)
+}
+
+var NewComponentA = &lib.NewFunction{
+	F:         func() (interface{}, error) { return new(ComponentA), nil },
+	Singleton: false,
+}
+
+func init() {
+	lib.RegisterType(new(ComponentA), NewComponentA)
+}
+
+func ProvideComponentA() (*ComponentA, error) {
+	r, err := lib.Provide(new(ComponentA))
+	if err != nil {
+		return nil, err
+	}
+	return r.(*ComponentA), nil
+}
+
+func init() {
+	b := new(plugin.Component)
+	err := json.Unmarshal([]byte("{\"type\": \"Singleton\"}"), b)
+	if err != nil {
+		klog.Fatal("unmarshal json failed", err)
+		return
+	}
+	lib.RegisterAnnotation(new(ComponentB), b)
+}
+
+var NewComponentB = &lib.NewFunction{
+	F:         func() (interface{}, error) { return new(ComponentB), nil },
+	Singleton: true,
+}
+
+func init() {
+	lib.RegisterType(new(ComponentB), NewComponentB)
+}
+
+func ProvideComponentB() (*ComponentB, error) {
+	r, err := lib.Provide(new(ComponentB))
+	if err != nil {
+		return nil, err
+	}
+	return r.(*ComponentB), nil
 }

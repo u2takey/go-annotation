@@ -28,7 +28,7 @@ func (p *threadSafeRegistry) registerAnnotation(t interface{}, a Annotation) {
 	annotationMapByType := p.annotationRegistry[annotatedType]
 
 	if _, ok := annotationMapByType[GetAnnotationName(a)]; ok {
-		panic(fmt.Sprintf("annotaion plugin with type: %s already registered", annotatedType))
+		panic(fmt.Sprintf("annotaion plugin with type: %s already registered\n", annotatedType))
 	}
 	annotationMapByType[GetAnnotationName(a)] = a
 }

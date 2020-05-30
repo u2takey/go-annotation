@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"reflect"
 	"strings"
 
+	"github.com/u2takey/go-annotation/pkg/plugin"
 	"k8s.io/gengo/args"
 	"k8s.io/gengo/examples/set-gen/sets"
 	"k8s.io/gengo/generator"
@@ -16,7 +18,7 @@ import (
 
 	annoArgs "github.com/u2takey/go-annotation/cmd/annotation-gen/args"
 	"github.com/u2takey/go-annotation/pkg/lib"
-	_ "github.com/u2takey/go-annotation/pkg/plugins"
+	_ "github.com/u2takey/go-annotation/pkg/plugin"
 )
 
 // prefix$Enable=true
@@ -61,6 +63,10 @@ func extractAnnotations(prefix string, t *types.Type) annotations {
 		} else {
 			klog.V(4).Infof("annotation format not valid %s\n", comment)
 			continue
+		}
+
+		if body == "" {
+			body = "{}"
 		}
 
 		if !isJson(body) {
@@ -191,6 +197,7 @@ func (g *genAnnotation) Filter(c *generator.Context, t *types.Type) bool {
 func (g *genAnnotation) Imports(c *generator.Context) (imports []string) {
 	imports = append(imports, g.imports.ImportLines()...)
 	imports = append(imports, "github.com/u2takey/go-annotation/pkg/lib")
+	imports = append(imports, "k8s.io/klog")
 	return
 }
 
@@ -211,6 +218,26 @@ func findAnnotationType(c *generator.Context, name string) *types.Type {
 	return nil
 }
 
+func (g *genAnnotation) getNewFunction(c *generator.Context, t *types.Type) string {
+	for name, method := range t.Methods {
+		if name == "New" || name == "New"+g.Namers(c)["raw"].Name(t) {
+			// do not support parameters now
+			if len(method.Signature.Parameters) == 0 {
+
+				if len(method.Signature.Results) == 1 && method.Signature.Results[0].Name == t.Name {
+					return fmt.Sprintf(`func () (interface{}, error) { return %s(), nil }`, name)
+				}
+				if len(method.Signature.Results) == 2 &&
+					method.Signature.Results[0].Name == t.Name &&
+					method.Signature.Results[1].Name.Name == "error" {
+					return fmt.Sprintf(`func () (interface{}, error) { return %s() }`, name)
+				}
+			}
+		}
+	}
+	return fmt.Sprintf(`func () (interface{}, error) { return new(%s), nil}`, g.Namers(c)["raw"].Name(t))
+}
+
 // core
 func (g *genAnnotation) GenerateType(c *generator.Context, t *types.Type, w io.Writer) error {
 	// writer
@@ -225,19 +252,47 @@ func (g *genAnnotation) GenerateType(c *generator.Context, t *types.Type, w io.W
 			klog.V(1).Infoln("annotation type not found", anno.rawTypeName)
 			continue
 		}
+		annotationPlugin := lib.GetPluginByName(anno.rawTypeName)
+		var annotationTarget = lib.TargetDefault
+		if targeted, ok := annotationPlugin.(lib.TargetedAnnotation); ok {
+			annotationTarget = targeted.Target()
+		}
+
+		if annotationTarget != t.Kind {
+			continue
+		}
+
+		pluginPopulated := reflect.New(reflect.TypeOf(annotationPlugin).Elem()).Interface()
+		err := json.Unmarshal([]byte(anno.body), pluginPopulated)
+		if anno.body != "" && err != nil {
+			klog.V(1).Infoln("annotation unmarshal error", err)
+			continue
+		}
+		newFunctionIsSingleton := false
+
+		klog.V(8).Infoln("pluginPopulated ", reflect.TypeOf(annotationPlugin), reflect.TypeOf(pluginPopulated))
+		if p, ok := pluginPopulated.(*plugin.Component); ok {
+
+			newFunctionIsSingleton = p.Type == plugin.Singleton
+		}
+
+		klog.V(1).Infoln("getNewFunction", g.getNewFunction(c, t))
+
 		m := map[string]interface{}{
-			"Resource":       c.Universe.Function(types.Name{Package: t.Name.Package, Name: "Resource"}),
-			"type":           t,
-			"annotationType": annotationType,
-			"annotationBody": anno.body,
+			"Resource":             c.Universe.Function(types.Name{Package: t.Name.Package, Name: "Resource"}),
+			"type":                 t,
+			"annotationType":       annotationType,
+			"annotationBody":       anno.body,
+			"newFunction":          g.getNewFunction(c, t),
+			"newFunctionSingleton": newFunctionIsSingleton,
 		}
 		klog.V(3).Infoln("annotation m", m)
-		// render
-		sw.Do(typeListerInterface, m)
-		annotationPlugin := lib.GetPluginByName(anno.rawTypeName)
+		// render registerTemplate
+		sw.Do(registerTemplate, m)
 
 		if compile, ok := annotationPlugin.(lib.CompileAnnotation); ok {
-			sw.Do(compile.GetTemplate(), m)
+			// render plugin template
+			sw.Do(compile.Template(), m)
 		} else {
 			klog.V(4).Infoln("get compile", annotationPlugin)
 		}
@@ -247,7 +302,7 @@ func (g *genAnnotation) GenerateType(c *generator.Context, t *types.Type, w io.W
 }
 
 // register template
-var typeListerInterface = `
+var registerTemplate = `
 func init() {
 	b := new($.annotationType|raw$)
 	err := json.Unmarshal([]byte("$.annotationBody|js$"), b)
