@@ -63,6 +63,10 @@ func (c *threadSafeContainer) provide(typeNeeded reflect.Type, visited map[refle
 		retType := reflect.TypeOf(ret).Elem()
 		retValue := reflect.ValueOf(ret).Elem()
 		for i := 0; i < retValue.NumField(); i++ {
+			rt := retValue.Field(i).Type()
+			if rt.Kind() != reflect.Ptr {
+				continue
+			}
 			fieldType := retValue.Field(i).Type().Elem()
 			// fmt.Println("get field type", retType.Name(), fieldType.Name(), retValue.Field(i).CanAddr(), retValue.Field(i).CanSet())
 			autowired := retType.Field(i).Tag.Get("autowired")

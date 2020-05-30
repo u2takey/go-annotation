@@ -57,7 +57,7 @@ func TestAnnotationComponent(t *testing.T) {
 		t.Errorf("call ProvideComponentA failed: %s", err)
 	}
 	if ca.B1 == nil || ca.B2 == nil {
-		t.Errorf("expect b1, b2 not nil b1: %q b2: %q", ca.B1, ca.B2)
+		t.Errorf("expect b1, b2 not nil b1: %v b2: %v", ca.B1, ca.B2)
 	}
 	if ca.B3 != nil {
 		t.Errorf("expect b3 not nil")
@@ -65,5 +65,21 @@ func TestAnnotationComponent(t *testing.T) {
 
 	if ca.B1 != ca.B2 {
 		t.Errorf("expect b1 == b2")
+	}
+
+	if ca.B1.C == nil {
+		t.Errorf("expect b1.c not nil")
+	}
+
+	if ca.B1.C.IntValue != 1 {
+		t.Errorf("expect ca.b1.c.intvalue %q, got %q", 1, ca.B1.C.IntValue)
+	}
+
+	if ca.B1.C.D == nil {
+		t.Errorf("expect b1.c.d not nil")
+	}
+
+	if ca.B1.C.D.IntValue != 2 {
+		t.Errorf("expect ca.b1.c.d.intvalue %q, got %q", 2, ca.B1.C.D.IntValue)
 	}
 }

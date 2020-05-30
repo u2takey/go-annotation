@@ -48,13 +48,13 @@ func init() {
 	lib.RegisterAnnotation(new(ComponentA), b)
 }
 
-var NewComponentA = &lib.NewFunction{
+var NewComponentAFunction = &lib.NewFunction{
 	F:         func() (interface{}, error) { return new(ComponentA), nil },
 	Singleton: false,
 }
 
 func init() {
-	lib.RegisterType(new(ComponentA), NewComponentA)
+	lib.RegisterType(new(ComponentA), NewComponentAFunction)
 }
 
 func ProvideComponentA() (*ComponentA, error) {
@@ -75,13 +75,13 @@ func init() {
 	lib.RegisterAnnotation(new(ComponentB), b)
 }
 
-var NewComponentB = &lib.NewFunction{
+var NewComponentBFunction = &lib.NewFunction{
 	F:         func() (interface{}, error) { return new(ComponentB), nil },
 	Singleton: true,
 }
 
 func init() {
-	lib.RegisterType(new(ComponentB), NewComponentB)
+	lib.RegisterType(new(ComponentB), NewComponentBFunction)
 }
 
 func ProvideComponentB() (*ComponentB, error) {
@@ -90,4 +90,58 @@ func ProvideComponentB() (*ComponentB, error) {
 		return nil, err
 	}
 	return r.(*ComponentB), nil
+}
+
+func init() {
+	b := new(plugin.Component)
+	err := json.Unmarshal([]byte("{}"), b)
+	if err != nil {
+		klog.Fatal("unmarshal json failed", err)
+		return
+	}
+	lib.RegisterAnnotation(new(ComponentC), b)
+}
+
+var NewComponentCFunction = &lib.NewFunction{
+	F:         func() (interface{}, error) { return NewComponentC(), nil },
+	Singleton: false,
+}
+
+func init() {
+	lib.RegisterType(new(ComponentC), NewComponentCFunction)
+}
+
+func ProvideComponentC() (*ComponentC, error) {
+	r, err := lib.Provide(new(ComponentC))
+	if err != nil {
+		return nil, err
+	}
+	return r.(*ComponentC), nil
+}
+
+func init() {
+	b := new(plugin.Component)
+	err := json.Unmarshal([]byte("{}"), b)
+	if err != nil {
+		klog.Fatal("unmarshal json failed", err)
+		return
+	}
+	lib.RegisterAnnotation(new(ComponentD), b)
+}
+
+var NewComponentDFunction = &lib.NewFunction{
+	F:         func() (interface{}, error) { return NewComponentD() },
+	Singleton: false,
+}
+
+func init() {
+	lib.RegisterType(new(ComponentD), NewComponentDFunction)
+}
+
+func ProvideComponentD() (*ComponentD, error) {
+	r, err := lib.Provide(new(ComponentD))
+	if err != nil {
+		return nil, err
+	}
+	return r.(*ComponentD), nil
 }

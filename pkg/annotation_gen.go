@@ -138,7 +138,7 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 				// generator 一个 Generator 生成一个文件
 				GeneratorFunc: func(c *generator.Context) (generators []generator.Generator) {
 					return []generator.Generator{
-						NewGenAnnotation(arguments.OutputFileBaseName, pkg.Path, annotationArgs.AnnotationPrefix),
+						NewGenAnnotation(arguments.OutputFileBaseName, annotationArgs.AnnotationPrefix, pkg),
 					}
 				},
 				// 过滤函数，哪些 type 不关心的，直接过滤，不会被 generator 处理
@@ -164,19 +164,19 @@ type genAnnotation struct {
 	generator.DefaultGen
 	targetPackage    string
 	annotationPrefix string
+	pkg              *types.Package
 	imports          namer.ImportTracker
-	typesForInit     []*types.Type
 }
 
-func NewGenAnnotation(sanitizedName, targetPackage, annotationPrefix string) generator.Generator {
+func NewGenAnnotation(sanitizedName, annotationPrefix string, pkg *types.Package) generator.Generator {
 	return &genAnnotation{
 		DefaultGen: generator.DefaultGen{
 			OptionalName: sanitizedName,
 		},
-		targetPackage:    targetPackage,
+		pkg:              pkg,
+		targetPackage:    pkg.Path,
 		annotationPrefix: annotationPrefix,
 		imports:          generator.NewImportTracker(),
-		typesForInit:     make([]*types.Type, 0),
 	}
 }
 
@@ -219,17 +219,34 @@ func findAnnotationType(c *generator.Context, name string) *types.Type {
 }
 
 func (g *genAnnotation) getNewFunction(c *generator.Context, t *types.Type) string {
-	for name, method := range t.Methods {
-		if name == "New" || name == "New"+g.Namers(c)["raw"].Name(t) {
+	for name, method := range g.pkg.Functions {
+		if name == "New"+g.Namers(c)["raw"].Name(t) {
 			// do not support parameters now
-			if len(method.Signature.Parameters) == 0 {
+			if method.Underlying == nil || method.Underlying.Signature == nil {
+				continue
+			}
+			signature := method.Underlying.Signature
 
-				if len(method.Signature.Results) == 1 && method.Signature.Results[0].Name == t.Name {
+			signatureMatch := func(p *types.Type, s *types.Type) bool {
+				return g.Namers(c)["raw"].Name(p) == "*"+s.Name.Name
+			}
+
+			if len(signature.Parameters) == 0 {
+				if len(signature.Results) > 0 {
+					fmt.Println(g.Namers(c)["raw"].Name(signature.Results[0]), "*", t.Name.Name)
+				}
+
+				if len(signature.Results) > 1 {
+					fmt.Println(g.Namers(c)["raw"].Name(signature.Results[1]), "*", t.Name.Name)
+				}
+
+				if len(signature.Results) == 1 &&
+					signatureMatch(signature.Results[0], t) {
 					return fmt.Sprintf(`func () (interface{}, error) { return %s(), nil }`, name)
 				}
-				if len(method.Signature.Results) == 2 &&
-					method.Signature.Results[0].Name == t.Name &&
-					method.Signature.Results[1].Name.Name == "error" {
+				if len(signature.Results) == 2 &&
+					signatureMatch(signature.Results[0], t) &&
+					signature.Results[1].Name.Name == "error" {
 					return fmt.Sprintf(`func () (interface{}, error) { return %s() }`, name)
 				}
 			}
